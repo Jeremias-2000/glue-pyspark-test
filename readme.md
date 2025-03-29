@@ -1,6 +1,10 @@
 # AWS Glue Local Test with LocalStack and PySpark
 
-![AWS Glue](aws-glue.svg) ![S3](s3.svg)  ![Localstack](localstack.jpg) ![Pyspark](pyspark.png)
+<img src="aws-glue.svg" alt="AWS Glue" width="50"/> 
+<img src="s3.svg" alt="S3" width="50"/> 
+<img src="localstack.jpg" alt="Localstack" width="50"/> 
+<img src="pyspark.png" alt="Pyspark" width="50"/>
+
 
 This guide demonstrates how to test AWS Glue locally using Docker, LocalStack, and PySpark. It includes steps to configure AWS CLI, interact with S3 buckets in LocalStack, and run a PySpark job for querying data.
 
