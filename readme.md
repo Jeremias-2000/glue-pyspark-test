@@ -1,7 +1,3 @@
-Aqui está um exemplo de README que você pode usar, removendo dados sensíveis e substituindo por exemplos genéricos:
-
----
-
 # AWS Glue Local Test with LocalStack and PySpark
 
 This guide demonstrates how to test AWS Glue locally using Docker, LocalStack, and PySpark. It includes steps to configure AWS CLI, interact with S3 buckets in LocalStack, and run a PySpark job for querying data.
