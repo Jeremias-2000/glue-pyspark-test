@@ -1,35 +1,36 @@
 # AWS Glue Local Test with LocalStack and PySpark
 
-<img src="aws-glue.svg" alt="AWS Glue" width="50"/> <img src="s3.svg" alt="S3" width="50"/> <img src="localstack.jpg" alt="Localstack" width="50"/> <img src="pyspark.png" alt="Pyspark" width="50"/>
+<img src="aws-glue.svg" alt="AWS Glue" width="50"/> <img src="s3.svg" alt="S3" width="50"/> <img src="localstack.jpg" alt="LocalStack" width="50"/> <img src="pyspark.png" alt="PySpark" width="50"/>
 
-
-This guide demonstrates how to test AWS Glue locally using Docker, LocalStack, and PySpark. It includes steps to configure AWS CLI, interact with S3 buckets in LocalStack, and run a PySpark job for querying data.
+This guide demonstrates how to test AWS Glue locally using Docker, LocalStack, and PySpark. You'll learn how to set up AWS CLI, interact with S3 buckets in LocalStack, and run a PySpark job for querying and transforming data.
 
 ## Prerequisites
 
-1. Docker
-2. LocalStack
-3. AWS CLI (configured with LocalStack)
-4. Terraform (optional, if using configuration variables)
-5. PySpark
+Ensure you have the following installed:
+
+- [Docker](https://www.docker.com/)
+- [LocalStack](https://localstack.cloud/)
+- [AWS CLI](https://aws.amazon.com/cli/) (configured for LocalStack)
+- [PySpark](https://spark.apache.org/docs/latest/api/python/)
+- [Terraform](https://developer.hashicorp.com/terraform/downloads) (optional, for infrastructure as code)
 
 ## Steps
 
-### 1. Set up Docker and LocalStack
+### 1. Start LocalStack with Docker Compose
 
-First, use the following command to authenticate Docker with AWS ECR (for the public AWS Glue image):
+First, authenticate Docker with AWS ECR (for the public AWS Glue image):
 
 ```bash
 aws ecr-public get-login-password --region us-east-1 | docker login --username AWS --password-stdin public.ecr.aws
 ```
 
-Then, start LocalStack with Docker Compose:
+Then, start LocalStack:
 
 ```bash
 docker-compose up --build
 ```
 
-### 2. Configure AWS CLI with LocalStack
+### 2. Configure AWS CLI for LocalStack
 
 Run the following command to configure AWS CLI to use LocalStack:
 
@@ -37,68 +38,94 @@ Run the following command to configure AWS CLI to use LocalStack:
 awslocal configure
 ```
 
-You may also want to adjust your `terraform.tfvars` file for Terraform configuration if needed.
+If you're using Terraform, adjust your `terraform.tfvars` file accordingly.
 
-### 3. Add CSV File to LocalStack S3
+### 3. Create an S3 Bucket and Upload CSV File
 
-To add a CSV file to LocalStack's S3 bucket, use the following command to copy the file into the LocalStack container:
-
-```bash
-docker cp /path/to/your/LOCAL_CSV_FILE.csv <container_id>:/opt/code/localstack/LOCAL_CSV_FILE.csv
-```
-
-Then, upload the file to your LocalStack S3 bucket using:
+Create a test S3 bucket in LocalStack:
 
 ```bash
-awslocal --endpoint-url=http://localhost:4566 s3 cp /opt/code/localstack/LOCAL_CSV_FILE.csv s3://glue-bucket-example/LOCAL_CSV_FILE.csv
+awslocal s3 mb s3://glue-bucket-example
 ```
 
-### 4. List Buckets and Objects in S3
+Upload a CSV file to LocalStack's S3 bucket:
 
-To list all the S3 buckets:
+```bash
+awslocal s3 cp /path/to/LOCAL_CSV_FILE.csv s3://glue-bucket-example/MOCK_DATA.csv
+```
+
+### 4. Verify Buckets and Objects in S3
+
+List all available S3 buckets:
 
 ```bash
 awslocal s3api list-buckets
 ```
 
-To list objects in a specific bucket:
+List objects in the `glue-bucket-example` bucket:
 
 ```bash
 awslocal s3api list-objects --bucket glue-bucket-example
 ```
 
-### 5. Copy Script to Container and Run PySpark
+### 5. Run PySpark with AWS Glue Configuration
 
-To run PySpark in the LocalStack container, copy your script file into the container:
+Launch a PySpark session with LocalStack S3 integration:
 
-```bash
-docker cp /path/to/your/script.py <container_id>:/home/hadoop/script.py
+```python
+from pyspark.sql import SparkSession
+
+spark = SparkSession.builder \
+    .appName("GlueJob") \
+    .config("spark.hadoop.fs.s3a.endpoint", "http://localhost:4566") \
+    .config("spark.hadoop.fs.s3a.access.key", "test") \
+    .config("spark.hadoop.fs.s3a.secret.key", "test") \
+    .config("spark.hadoop.fs.s3a.connection.ssl.enabled", "false") \
+    .config("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem") \
+    .config("spark.hadoop.fs.s3a.aws.credentials.provider", "org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider") \
+    .getOrCreate()
+
+s3_url = "s3a://glue-bucket-example"
+df = spark.read.option("header", "true").csv(f"{s3_url}/MOCK_DATA.csv")
+df.show()
+
+df_filtered = df.filter(df["country_code"] == "BR")
+df_filtered.show()
+
+df_filtered.write.mode("overwrite").parquet(f"{s3_url}/parquet/filtered_data.parquet")
 ```
 
-Then, enter the container and move the script to the correct directory:
+### 6. Run the PySpark Script in Docker
+
+To run the script inside the LocalStack container, first copy your script into the container:
+
+```bash
+docker cp /path/to/script.py <container_id>:/home/hadoop/script.py
+```
+
+Access the container:
 
 ```bash
 docker exec -it --user root <container_id> bash
-mv /tmp/script.py /home/hadoop/
 ```
 
-Finally, you can run PySpark with the following command:
+Move the script to the correct directory and run PySpark:
 
 ```bash
+mv /tmp/script.py /home/hadoop/
 pyspark --conf spark.sql.catalogImplementation=hive
 ```
 
-This will start your PySpark session and you can execute your queries.
+---
+
+## Notes
+
+- Replace `/path/to/LOCAL_CSV_FILE.csv` and `/path/to/script.py` with actual file paths.
+- Replace `<container_id>` with the ID of your LocalStack container (`docker ps` helps find it).
+- LocalStack may introduce some latency when accessing S3. If you encounter `AccessDeniedException`, wait a few seconds and retry.
+- If using Terraform, ensure that S3 and IAM configurations are correctly defined.
 
 ---
 
-### Notes
-
-- Replace `/path/to/your/LOCAL_CSV_FILE.csv` and `/path/to/your/script.py` with the actual paths to your CSV and Python script files.
-- `<container_id>` should be replaced with the ID of your running LocalStack container.
-- You can configure the bucket names and other settings based on your project requirements.
-
----
-
-This README summarizes the steps to test AWS Glue locally with LocalStack and PySpark, ensuring you can query data from S3 using PySpark without needing an actual AWS account.
+This guide helps you test AWS Glue locally with LocalStack and PySpark, enabling data processing without an actual AWS account. 🚀
 
