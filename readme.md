@@ -113,9 +113,11 @@ Move the script to the correct directory and run PySpark:
 
 ```bash
 mv /tmp/script.py /home/hadoop/
-pyspark --conf spark.sql.catalogImplementation=hive
+
+python3 /home/hadoop/script.py
 ```
 
+This will execute your script directly with Python 3 inside the container, without needing to move files manually.
 ---
 
 ## Notes
